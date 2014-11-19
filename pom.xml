@@ -4,8 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>coursmos-components</groupId>
-    <artifactId>coursmos-components</artifactId>
+    <groupId>reactive-recommendations</groupId>
+    <artifactId>recommendations-components</artifactId>
     <packaging>pom</packaging>
     <version>0.1</version>
     <modules>
