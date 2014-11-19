@@ -36,19 +36,28 @@ trait Service extends HttpService {
     }
   path("itemViewed") {
     post {
-      respondWithStatus(StatusCode.Success) {
+      respondWithStatus(200) {
+        complete{
+          ""
+        }
       }
     }
   }
   path("user") {
     post {
-      respondWithStatus(StatusCodes.Success) {
+      respondWithStatus(200) {
+        complete{
+          ""
+        }
       }
     }
   }
   path("item") {
     post {
-      respondWithStatus(StatusCodes.Success) {
+      respondWithStatus(200) {
+        complete{
+          ""
+        }
       }
     }
   }
