@@ -15,6 +15,8 @@
 
     <properties>
         <scala-version>2.10.4</scala-version>
+        <akka-version>2.3.6</akka-version>
+        <spray-version>1.3.2</spray-version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <tar.name>${project.build.finalName}.tar.gz</tar.name>
         <maven.build.timestamp.format>
@@ -44,7 +46,7 @@
         <repository>
             <id>Spray Repository</id>
             <name>Spray Repository</name>
-            <url>http://repo.spray.cc/</url>
+            <url>http://repo.spray.io/</url>
         </repository>
         <repository>
             <id>cloudera</id>
