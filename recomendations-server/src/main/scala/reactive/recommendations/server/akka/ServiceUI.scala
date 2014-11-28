@@ -31,7 +31,7 @@ class ServiceUI extends Actor with Service {
 
 case class Recommendation(user: String, items: Array[String])
 
-case class Action(user: String, item: String, action: String, params: Map[String, String])
+case class Action(user: String, item: String, action: String, params: Map[String, String] = Map[String, String]())
 
 case class Item(id: String, tags: Set[String], categories: Set[String])
 
@@ -40,25 +40,44 @@ case class User(id: String)
 
 trait Service extends HttpService {
 
+  implicit val reco = jsonFormat2(Recommendation)
+  implicit val act = jsonFormat4(Action)
+  implicit val itm = jsonFormat3(Item)
+
   val managingRoute =
     path("recommend") {
       get {
-        respondWithMediaType(MediaTypes.`application/json`) {
-          complete {
-            implicit val reco = jsonFormat2(Recommendation)
-            Recommendation("sss", Array("i1", "i2"))
-          }
+        parameter("uid") {
+          uid =>
+            respondWithMediaType(MediaTypes.`application/json`) {
+              complete {
+                Recommendation(uid, Array("i1", "i2"))
+              }
+            }
         }
       }
     } ~
       path("action") {
-        (get | post) {
-          respondWithStatus(200) {
-            complete {
-              "hi!!!!!!!!!!"
+        get {
+          parameters("user", "item", "action") {
+            (uid: String, itm: String, t: String) =>
+              respondWithMediaType(MediaTypes.`application/json`) {
+                complete {
+                  Action(uid, itm, t)
+                }
+              }
+          }
+        } ~
+          post {
+            entity(as[Action]) {
+              action =>
+                respondWithStatus(200) {
+                  complete {
+                    "hi!!!!!!!!!!"
+                  }
+                }
             }
           }
-        }
       } ~
       path("user") {
         post {
@@ -70,6 +89,7 @@ trait Service extends HttpService {
         }
       } ~
       path("item") {
+
         post {
           respondWithStatus(200) {
             complete {

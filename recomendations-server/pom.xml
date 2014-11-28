@@ -43,6 +43,11 @@
             <version>${spray-version}</version>
         </dependency>
         <dependency>
+            <groupId>io.spray</groupId>
+            <artifactId>spray-client_2.10</artifactId>
+            <version>${spray-version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>1.7.6</version>
