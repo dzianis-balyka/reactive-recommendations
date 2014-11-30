@@ -1,7 +1,11 @@
 package reactive.recommendations.server.akka
 
+import java.util.concurrent.Executors
+
 import akka.actor.{Props, Actor}
-import spray.http.{MediaTypes}
+import reactive.recommendations.server.ElasticServices
+import spray.client.pipelining._
+import spray.http.{StatusCode, HttpResponse, HttpRequest, MediaTypes}
 import spray.json.DefaultJsonProtocol
 import spray.json.DefaultJsonProtocol._
 import spray.httpx.SprayJsonSupport
@@ -9,6 +13,10 @@ import spray.httpx.SprayJsonSupport._
 
 
 import spray.routing.HttpService
+import spray.routing.directives.DetachMagnet
+
+import scala.concurrent.{Future, ExecutionContext}
+
 
 /**
  * Created by d_balyka on 19.11.2014.
@@ -31,9 +39,13 @@ class ServiceUI extends Actor with Service {
 
 case class Recommendation(user: String, items: Array[String])
 
-case class Action(user: String, item: String, action: String, params: Map[String, String] = Map[String, String]())
+case class Action(ts: Long, user: String, item: String, action: String, params: Map[String, String] = Map[String, String]()) {
+  def id(): String = {
+    "%1$s-%2$s-%3$s-%4$s".format(ts, user, item, action)
+  }
+}
 
-case class Item(id: String, tags: Set[String], categories: Set[String])
+case class Item(id: String, createdTs: Long, tags: Set[String] = Set[String](), categories: Set[String] = Set[String]())
 
 case class User(id: String)
 
@@ -41,8 +53,11 @@ case class User(id: String)
 trait Service extends HttpService {
 
   implicit val reco = jsonFormat2(Recommendation)
-  implicit val act = jsonFormat4(Action)
-  implicit val itm = jsonFormat3(Item)
+  implicit val act = jsonFormat5(Action)
+  implicit val itm = jsonFormat4(Item)
+  implicit val usr = jsonFormat1(User)
+  implicit val ec = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(10))
+  val detachEc = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(10))
 
   val managingRoute =
     path("recommend") {
@@ -59,11 +74,14 @@ trait Service extends HttpService {
     } ~
       path("action") {
         get {
-          parameters("user", "item", "action") {
-            (uid: String, itm: String, t: String) =>
-              respondWithMediaType(MediaTypes.`application/json`) {
+          parameters('ts.as[Long], 'user, 'item, 'action) {
+            (ts: Long, uid: String, item: String, t: String) =>
+              detach(detachEc) {
                 complete {
-                  Action(uid, itm, t)
+                  ElasticServices.indexAction(Action(ts, uid, item, t)).map {
+                    ir =>
+                      StatusCode.int2StatusCode(200)
+                  }
                 }
               }
           }
@@ -71,9 +89,10 @@ trait Service extends HttpService {
           post {
             entity(as[Action]) {
               action =>
-                respondWithStatus(200) {
-                  complete {
-                    "hi!!!!!!!!!!"
+                complete {
+                  ElasticServices.indexAction(action).map {
+                    ir =>
+                      StatusCode.int2StatusCode(200)
                   }
                 }
             }
@@ -89,15 +108,33 @@ trait Service extends HttpService {
         }
       } ~
       path("item") {
-
-        post {
-          respondWithStatus(200) {
-            complete {
-              "item"
+        get {
+          parameters('id, 'ts.as[Long], 'tag, 'category) {
+            (id: String, ts: Long, tag: String, category: String) =>
+              parameterMultiMap {
+                pmp =>
+                  complete {
+                    ElasticServices.indexItem(Item(id, ts, pmp.get("tag").get.toSet, pmp.get("category").get.toSet)).map {
+                      ir =>
+                        StatusCode.int2StatusCode(200)
+                    }
+                  }
+              }
+          }
+        } ~
+          post {
+            entity(as[Item]) {
+              item =>
+                complete {
+                  ElasticServices.indexItem(item).map {
+                    ir =>
+                      StatusCode.int2StatusCode(200)
+                  }
+                }
             }
           }
-        }
       }
+
 }
 
 
