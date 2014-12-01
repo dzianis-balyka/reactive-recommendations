@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory
 import reactive.recommendations.server.akka.{User, Action, Item}
 import com.sksamuel.elastic4s.ElasticDsl._
 import com.sksamuel.elastic4s.ElasticClient
+import collection.JavaConversions._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -35,55 +36,119 @@ object ElasticServices {
     index into "users/user" id user.id doc user
   }
 
-  def findItemsForUser(userId: String): Future[Array[String]] = {
-
-    val userHotTags = Array("yyy")
-    val userHotCategories = Array("fiction")
-    val userVisitedItems = Array("i1")
-
+  def findItemIds(userId: String): Future[Set[String]] = {
     client.execute {
-      search in "items" types "item" fields ("id") filter {
-        not {
-          idsFilter(userVisitedItems: _*)
-        }
-      } query {
-        bool {
-          should {
-            termsQuery("tags", userHotTags: _*).boost(100)
-            termsQuery("categories", userHotCategories: _*).boost(50)
-          }
-        }
+      search in "actions" types "action" fields ("item") query {
+        "*:*"
+      } filter {
+        termFilter("user", userId)
       } sort {
-        by field ("createdTs") order SortOrder.DESC
+        by field ("ts") order SortOrder.DESC
       }
     }.map {
       sr =>
-        log.info("sr.getHits" + sr.getHits.hits())
         sr.getHits.hits().map {
           hit =>
-            log.info("hit=" + hit.fields())
-            val fieldValue = hit.field("id")
-            if (fieldValue != null) {
-              fieldValue.getValue
+            val itemValue = hit.field("item")
+            val item = if (itemValue != null) {
+              itemValue.getValue[String]
             } else {
               ""
             }
-        }.filter(!_.isEmpty)
+            item
+        }.filter(!_.isEmpty).toSet
     }
+  }
+
+  def findCategoriesTags(userId: String): Future[UserPreferences] = {
+    findItemIds(userId).flatMap {
+      ids =>
+
+        log.info("ids=" + ids)
+
+        client.execute {
+          search in "items" types "item" fields("tags", "categories") query {
+            "*:*"
+          } filter {
+            idsFilter(ids.toArray: _*)
+          } sort {
+            by field ("createdTs") order SortOrder.DESC
+          }
+        }.map {
+          sr =>
+            val tc = sr.getHits.hits().map {
+              hit =>
+                val categoriesValue = hit.field("categories")
+                val cats: Array[String] = if (categoriesValue != null) {
+                  categoriesValue.getValues.map(_.toString).toArray
+                } else {
+                  Array[String]()
+                }
+                val tagsValue = hit.field("tags")
+                val tags: Array[String] = if (tagsValue != null) {
+                  tagsValue.getValues.map(_.toString).toArray
+                } else {
+                  Array[String]()
+                }
+                (cats, tags)
+            }
+
+            UserPreferences(tc.flatMap(_._1).toSet, tc.flatMap(_._2).toSet, ids)
+        }
+    }
+  }
+
+  def findItemsForUser(userId: String): Future[Array[String]] = {
+
+    findCategoriesTags(userId).flatMap {
+      up =>
+
+        log.info("" + up)
+
+        client.execute {
+          search in "items" types "item" fields ("id") filter {
+            not {
+              idsFilter(up.ids.toArray: _*)
+            }
+          } query {
+            bool {
+              should {
+                termsQuery("tags", up.tags.toArray: _*).boost(100)
+                termsQuery("categories", up.categories.toArray: _*).boost(50)
+              }
+            }
+          } sort {
+            by field ("createdTs") order SortOrder.DESC
+          }
+        }.map {
+          sr =>
+            sr.getHits.hits().map {
+              hit =>
+                val fieldValue = hit.field("id")
+                if (fieldValue != null) {
+                  fieldValue.getValue
+                } else {
+                  ""
+                }
+            }.filter(!_.isEmpty)
+        }
+    }
+
   }
 
 
   def main(args: Array[String]) = {
     log.info("" + client.execute {
-      search in "items" types "item" fields ("id") query {
-        termsQuery("tags", "4", "3").minimumShouldMatch(1)
+      search in "items" types "item" fields("categories", "tags") query {
+        "*:*"
       } filter {
-        termsFilter("tags", "3", "4")
+        idsFilter("i1", "i2")
       }
     }.await)
     log.info("" + findItemsForUser("u1").await.toBuffer)
 
-
   }
 
 }
+
+case class UserPreferences(categories: Set[String], tags: Set[String], ids: Set[String])

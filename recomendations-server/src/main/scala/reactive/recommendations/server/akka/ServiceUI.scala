@@ -102,11 +102,9 @@ trait Service extends HttpService {
           }
       } ~
       path("user") {
-        post {
-          respondWithStatus(200) {
-            complete {
-              "user"
-            }
+        (get | post) {
+          complete {
+            StatusCode.int2StatusCode(404)
           }
         }
       } ~
