@@ -62,11 +62,14 @@ trait Service extends HttpService {
   val managingRoute =
     path("recommend") {
       get {
-        parameter("uid") {
+        parameter('uid) {
           uid =>
             respondWithMediaType(MediaTypes.`application/json`) {
               complete {
-                Recommendation(uid, Array("i1", "i2"))
+                ElasticServices.findItemsForUser(uid).map {
+                  items =>
+                    Recommendation(uid, items)
+                }
               }
             }
         }

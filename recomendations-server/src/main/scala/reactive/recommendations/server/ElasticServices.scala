@@ -3,6 +3,7 @@ package reactive.recommendations.server
 import java.util.concurrent.Executors
 
 import org.elasticsearch.action.index.IndexResponse
+import org.elasticsearch.search.sort.SortOrder
 import org.slf4j.LoggerFactory
 import reactive.recommendations.server.akka.{User, Action, Item}
 import com.sksamuel.elastic4s.ElasticDsl._
@@ -36,10 +37,24 @@ object ElasticServices {
 
   def findItemsForUser(userId: String): Future[Array[String]] = {
 
+    val userHotTags = Array("yyy")
+    val userHotCategories = Array("fiction")
+    val userVisitedItems = Array("i1")
 
     client.execute {
-      search in "items" types "item" fields ("id") query {
-        "*:*"
+      search in "items" types "item" fields ("id") filter {
+        not {
+          idsFilter(userVisitedItems: _*)
+        }
+      } query {
+        bool {
+          should {
+            termsQuery("tags", userHotTags: _*).boost(100)
+            termsQuery("categories", userHotCategories: _*).boost(50)
+          }
+        }
+      } sort {
+        by field ("createdTs") order SortOrder.DESC
       }
     }.map {
       sr =>
@@ -47,8 +62,13 @@ object ElasticServices {
         sr.getHits.hits().map {
           hit =>
             log.info("hit=" + hit.fields())
-            hit.field("_id").getValue
-        }
+            val fieldValue = hit.field("id")
+            if (fieldValue != null) {
+              fieldValue.getValue
+            } else {
+              ""
+            }
+        }.filter(!_.isEmpty)
     }
   }
 
