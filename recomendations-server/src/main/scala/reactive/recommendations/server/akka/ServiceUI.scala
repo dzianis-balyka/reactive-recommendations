@@ -77,11 +77,11 @@ trait Service extends HttpService {
     } ~
       path("action") {
         get {
-          parameters('ts.as[Long], 'user, 'item, 'action) {
-            (ts: Long, uid: String, item: String, t: String) =>
+          parameters('ts.as[Option[Long]], 'user, 'item, 'action) {
+            (ts: Option[Long], uid: String, item: String, t: String) =>
               detach(detachEc) {
                 complete {
-                  ElasticServices.indexAction(Action(ts, uid, item, t)).map {
+                  ElasticServices.indexAction(Action(ts.getOrElse(System.currentTimeMillis()), uid, item, t)).map {
                     ir =>
                       StatusCode.int2StatusCode(200)
                   }
@@ -110,12 +110,12 @@ trait Service extends HttpService {
       } ~
       path("item") {
         get {
-          parameters('id, 'ts.as[Long], 'tag, 'category) {
-            (id: String, ts: Long, tag: String, category: String) =>
+          parameters('id, 'ts.as[Option[Long]], 'tag, 'category) {
+            (id: String, ts: Option[Long], tag: String, category: String) =>
               parameterMultiMap {
                 pmp =>
                   complete {
-                    ElasticServices.indexItem(Item(id, ts, pmp.get("tag").get.toSet, pmp.get("category").get.toSet)).map {
+                    ElasticServices.indexItem(Item(id, ts.getOrElse(System.currentTimeMillis()), pmp.get("tag").get.toSet, pmp.get("category").get.toSet)).map {
                       ir =>
                         StatusCode.int2StatusCode(200)
                     }

@@ -139,6 +139,14 @@ object ElasticServices {
 
   def main(args: Array[String]) = {
     log.info("" + client.execute {
+      update()
+    }.await)
+    log.info("" + findItemsForUser("u1").await.toBuffer)
+
+  }
+
+  def main1(args: Array[String]) = {
+    log.info("" + client.execute {
       search in "items" types "item" fields("categories", "tags") query {
         "*:*"
       } filter {
