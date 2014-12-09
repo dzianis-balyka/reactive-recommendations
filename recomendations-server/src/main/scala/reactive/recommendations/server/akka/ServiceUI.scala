@@ -39,13 +39,13 @@ class ServiceUI extends Actor with Service {
 
 case class Recommendation(user: String, items: Array[String])
 
-case class Action(ts: Long, user: String, item: String, action: String, params: Map[String, String] = Map[String, String]()) {
+case class Action(ts: Long = System.currentTimeMillis(), user: String, item: String, action: String, params: Map[String, String] = Map[String, String]()) {
   def id(): String = {
     "%1$s-%2$s-%3$s-%4$s".format(ts, user, item, action)
   }
 }
 
-case class Item(id: String, createdTs: Long, tags: Set[String] = Set[String](), categories: Set[String] = Set[String]())
+case class Item(id: String, createdTs: Long = System.currentTimeMillis(), tags: Set[String] = Set[String](), categories: Set[String] = Set[String]())
 
 case class User(id: String)
 
@@ -62,11 +62,11 @@ trait Service extends HttpService {
   val managingRoute =
     path("recommend") {
       get {
-        parameter('uid) {
-          uid =>
+        parameter('uid, 'limit.as[Option[Int]]) {
+          (uid, limit) =>
             respondWithMediaType(MediaTypes.`application/json`) {
               complete {
-                ElasticServices.findItemsForUser(uid).map {
+                ElasticServices.findItemsForUser(uid,limit).map {
                   items =>
                     Recommendation(uid, items)
                 }

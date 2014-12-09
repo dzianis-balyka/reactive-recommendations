@@ -20,21 +20,38 @@ object ElasticServices {
 
   implicit val ec = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(10))
 
+  //  val client = ElasticClient.remote("predictio8.hcl.pp.coursmos.com" -> 9300)
   val client = ElasticClient.remote("localhost" -> 9300)
+  val defaultLimit = 100
+  val defaultInternalLimit = 1000
 
   val log = LoggerFactory.getLogger(ServerRunner.getClass)
 
+
   def indexAction(action: Action): Future[IndexResponse] = client.execute {
-    index into "actions/action" id action.id() doc action
+    index into "actions/action" id (action.id()) doc (action)
   }
 
   def indexItem(item: Item): Future[IndexResponse] = client.execute {
-    index into "items/item" id item.id doc item
+    index into "items/item" id (item.id) doc (item)
   }
 
   def indexUser(user: User): Future[IndexResponse] = client.execute {
-    index into "users/user" id user.id doc user
+    index into "users/user" id (user.id) doc (user)
   }
+
+
+  //  def indexAction(action: Action): Future[IndexResponse] = client.execute {
+  //    index into "actions/action" id (action.id()).doc(action.productIterator.toMap[String, Any])
+  //  }
+  //
+  //  def indexItem(item: Item): Future[IndexResponse] = client.execute {
+  //    index into "items/item" id (item.id).doc(item.productIterator.toMap[String, Any])
+  //  }
+  //
+  //  def indexUser(user: User): Future[IndexResponse] = client.execute {
+  //    index into "users/user" id (user.id).doc(user.productIterator.toMap[String, Any])
+  //  }
 
   def findItemIds(userId: String): Future[Set[String]] = {
     client.execute {
@@ -44,7 +61,7 @@ object ElasticServices {
         termFilter("user", userId)
       } sort {
         by field ("ts") order SortOrder.DESC
-      }
+      } limit (defaultInternalLimit)
     }.map {
       sr =>
         sr.getHits.hits().map {
@@ -66,6 +83,7 @@ object ElasticServices {
 
         log.info("ids=" + ids)
 
+
         client.execute {
           search in "items" types "item" fields("tags", "categories") query {
             "*:*"
@@ -73,7 +91,7 @@ object ElasticServices {
             idsFilter(ids.toArray: _*)
           } sort {
             by field ("createdTs") order SortOrder.DESC
-          }
+          } limit (defaultInternalLimit)
         }.map {
           sr =>
             val tc = sr.getHits.hits().map {
@@ -98,28 +116,41 @@ object ElasticServices {
     }
   }
 
-  def findItemsForUser(userId: String): Future[Array[String]] = {
+  def findItemsForUser(userId: String, limit: Option[Int] = None): Future[Array[String]] = {
 
     findCategoriesTags(userId).flatMap {
       up =>
 
         log.info("" + up)
 
+
+
         client.execute {
-          search in "items" types "item" fields ("id") filter {
-            not {
-              idsFilter(up.ids.toArray: _*)
-            }
-          } query {
-            bool {
-              should {
-                termsQuery("tags", up.tags.toArray: _*).boost(100)
-                termsQuery("categories", up.categories.toArray: _*).boost(50)
+
+          if (up.ids.isEmpty) {
+            search in "items" types "item" fields ("id") query {
+              "*:*"
+            } sort {
+              by field ("createdTs") order SortOrder.DESC
+            } limit (limit.getOrElse(defaultLimit))
+          } else {
+            search in "items" types "item" fields ("id") filter {
+              not {
+                idsFilter(up.ids.toArray: _*)
               }
-            }
-          } sort {
-            by field ("createdTs") order SortOrder.DESC
+            } query {
+              bool {
+                should {
+                  termsQuery("tags", up.tags.toArray: _*).boost(100)
+                  termsQuery("categories", up.categories.toArray: _*).boost(50)
+                }
+              }
+            } sort {
+              by field ("createdTs") order SortOrder.DESC
+            } limit (limit.getOrElse(defaultLimit))
           }
+
+
         }.map {
           sr =>
             sr.getHits.hits().map {
@@ -134,13 +165,16 @@ object ElasticServices {
         }
     }
 
+
   }
 
 
   def main(args: Array[String]) = {
-    log.info("" + client.execute {
-      update()
-    }.await)
+    //    log.info("" + client.execute {
+    //      update()
+    //    }.await)
+
+    log.info("" + Action(user = "uuu", item = "itm", action = "act").productIterator.toBuffer)
     log.info("" + findItemsForUser("u1").await.toBuffer)
 
   }
