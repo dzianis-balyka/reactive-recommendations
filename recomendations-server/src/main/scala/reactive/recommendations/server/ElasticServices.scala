@@ -29,15 +29,16 @@ object ElasticServices {
 
 
   def indexAction(action: Action): Future[IndexResponse] = client.execute {
-    index into "actions/action" id (action.id()) doc (action)
+    index into "actions/action" fields("id" -> action.id(), "ts" -> action.ts, "user" -> action.user, "item" -> action.item, "action" -> action.action, "params" -> action.params)
   }
 
   def indexItem(item: Item): Future[IndexResponse] = client.execute {
-    index into "items/item" id (item.id) doc (item)
+    index into "items/item" fields
+      ("id" -> item.id, "createdTs" -> item.createdTs, "tags" -> item.tags, "categories" -> item.categories)
   }
 
   def indexUser(user: User): Future[IndexResponse] = client.execute {
-    index into "users/user" id (user.id) doc (user)
+    index into "users/user" fields ("id" -> user.id)
   }
 
 
@@ -175,7 +176,7 @@ object ElasticServices {
     //    }.await)
 
     log.info("" + Action(user = "uuu", item = "itm", action = "act").productIterator.toBuffer)
-    log.info("" + findItemsForUser("u1").await.toBuffer)
+    //    log.info("" + findItemsForUser("u1").await.toBuffer)
 
   }
 
@@ -192,5 +193,6 @@ object ElasticServices {
   }
 
 }
+
 
 case class UserPreferences(categories: Set[String], tags: Set[String], ids: Set[String])
