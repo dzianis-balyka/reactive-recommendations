@@ -20,7 +20,7 @@ object ElasticServices {
 
   implicit val ec = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(10))
 
-  //  val client = ElasticClient.remote("predictio8.hcl.pp.coursmos.com" -> 9300)
+  //    val client = ElasticClient.remote("predictio8.hcl.pp.coursmos.com" -> 9300)
   val client = ElasticClient.remote("localhost" -> 9300)
   val defaultLimit = 100
   val defaultInternalLimit = 1000
@@ -29,16 +29,16 @@ object ElasticServices {
 
 
   def indexAction(action: Action): Future[IndexResponse] = client.execute {
-    index into "actions/action" fields("id" -> action.id(), "ts" -> action.ts, "user" -> action.user, "item" -> action.item, "action" -> action.action, "params" -> action.params)
+    index into "actions/action" id (action.id()) fields("id" -> action.id(), "ts" -> action.ts, "user" -> action.user, "item" -> action.item, "action" -> action.action, "params" -> action.params)
   }
 
   def indexItem(item: Item): Future[IndexResponse] = client.execute {
-    index into "items/item" fields
+    index into "items/item" id (item.id) fields
       ("id" -> item.id, "createdTs" -> item.createdTs, "tags" -> item.tags, "categories" -> item.categories)
   }
 
   def indexUser(user: User): Future[IndexResponse] = client.execute {
-    index into "users/user" fields ("id" -> user.id)
+    index into "users/user" id (user.id) fields ("id" -> user.id)
   }
 
 

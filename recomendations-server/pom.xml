@@ -118,6 +118,243 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>2.9</version>
+                <executions>
+                    <execution>
+                        <id>copy</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+
+                                <!--[INFO] - maven-dependency-plugin:2.9:tree (default-cli) @ recomendations-server -->
+                                <!--[INFO] reactive-recommendations:recomendations-server:jar:0.1-->
+                                <!--[INFO] +- org.scala-lang:scala-compiler:jar:2.10.4:compile-->
+                                <!--[INFO] +- org.scala-lang:scala-reflect:jar:2.10.4:compile-->
+                                <!--[INFO] +- org.scala-lang:scala-library:jar:2.10.4:compile-->
+                                <!--[INFO] +- org.scala-lang:scalap:jar:2.10.4:compile-->
+                                <!--[INFO] +- com.sksamuel.elastic4s:elastic4s_2.10:jar:1.3.3:compile-->
+                                <!--[INFO] |  +- org.elasticsearch:elasticsearch:jar:1.3.2:compile-->
+                                <!--[INFO] |  |  +- org.apache.lucene:lucene-core:jar:4.9.0:compile-->
+                                <!--[INFO] |  |  +- org.apache.lucene:lucene-analyzers-common:jar:4.9.0:compile-->
+                                <!--[INFO] |  |  +- org.apache.lucene:lucene-codecs:jar:4.9.0:compile-->
+                                <!--[INFO] |  |  +- org.apache.lucene:lucene-queries:jar:4.9.0:compile-->
+                                <!--[INFO] |  |  +- org.apache.lucene:lucene-memory:jar:4.9.0:compile-->
+                                <!--[INFO] |  |  +- org.apache.lucene:lucene-highlighter:jar:4.9.0:compile-->
+                                <!--[INFO] |  |  +- org.apache.lucene:lucene-queryparser:jar:4.9.0:compile-->
+                                <!--[INFO] |  |  +- org.apache.lucene:lucene-sandbox:jar:4.9.0:compile-->
+                                <!--[INFO] |  |  +- org.apache.lucene:lucene-suggest:jar:4.9.0:compile-->
+                                <!--[INFO] |  |  +- org.apache.lucene:lucene-misc:jar:4.9.0:compile-->
+                                <!--[INFO] |  |  +- org.apache.lucene:lucene-join:jar:4.9.0:compile-->
+                                <!--[INFO] |  |  +- org.apache.lucene:lucene-grouping:jar:4.9.0:compile-->
+                                <!--[INFO] |  |  +- org.apache.lucene:lucene-spatial:jar:4.9.0:compile-->
+                                <!--[INFO] |  |  |  \- com.spatial4j:spatial4j:jar:0.4.1:compile-->
+                                <!--[INFO] |  |  +- org.antlr:antlr-runtime:jar:3.5:compile-->
+                                <!--[INFO] |  |  +- org.ow2.asm:asm:jar:4.1:compile-->
+                                <!--[INFO] |  |  \- org.ow2.asm:asm-commons:jar:4.1:compile-->
+                                <!--[INFO] |  \- commons-io:commons-io:jar:2.4:compile-->
+                                <!--[INFO] +- com.typesafe.akka:akka-actor_2.10:jar:2.3.6:compile-->
+                                <!--[INFO] |  \- com.typesafe:config:jar:1.2.1:compile-->
+                                <!--[INFO] +- io.spray:spray-routing_2.10:jar:1.3.2:compile-->
+                                <!--[INFO] |  +- io.spray:spray-http_2.10:jar:1.3.2:compile-->
+                                <!--[INFO] |  |  \- org.parboiled:parboiled-scala_2.10:jar:1.1.6:compile-->
+                                <!--[INFO] |  |     \- org.parboiled:parboiled-core:jar:1.1.6:compile-->
+                                <!--[INFO] |  +- io.spray:spray-util_2.10:jar:1.3.2:compile-->
+                                <!--[INFO] |  \- com.chuusai:shapeless_2.10:jar:1.2.4:compile-->
+                                <!--[INFO] +- io.spray:spray-json_2.10:jar:1.3.1:compile-->
+                                <!--[INFO] +- io.spray:spray-can_2.10:jar:1.3.2:compile-->
+                                <!--[INFO] |  \- io.spray:spray-io_2.10:jar:1.3.2:compile-->
+                                <!--[INFO] +- io.spray:spray-httpx_2.10:jar:1.3.2:compile-->
+                                <!--[INFO] |  \- org.jvnet.mimepull:mimepull:jar:1.9.4:compile-->
+                                <!--[INFO] +- io.spray:spray-client_2.10:jar:1.3.2:compile-->
+                                <!--[INFO] +- org.slf4j:slf4j-api:jar:1.7.6:compile-->
+                                <!--[INFO] +- org.slf4j:slf4j-log4j12:jar:1.7.6:compile-->
+                                <!--[INFO] +- log4j:log4j:jar:1.2.17:compile-->
+                                <!--[INFO] +- org.json4s:json4s-jackson_2.10:jar:3.2.7:compile-->
+                                <!--[INFO] |  \- org.json4s:json4s-core_2.10:jar:3.2.7:compile-->
+                                <!--[INFO] |     \- org.json4s:json4s-ast_2.10:jar:3.2.7:compile-->
+                                <!--[INFO] +- com.fasterxml.jackson.core:jackson-core:jar:2.4.1:compile-->
+                                <!--[INFO] +- com.fasterxml.jackson.core:jackson-databind:jar:2.4.1:compile-->
+                                <!--[INFO] |  \- com.fasterxml.jackson.core:jackson-annotations:jar:2.4.0:compile-->
+                                <!--[INFO] +- com.fasterxml.jackson.module:jackson-module-scala_2.10:jar:2.4.1:compile-->
+                                <!--[INFO] |  +- com.thoughtworks.paranamer:paranamer:jar:2.6:compile-->
+                                <!--[INFO] |  +- com.google.code.findbugs:jsr305:jar:2.0.1:compile-->
+                                <!--[INFO] |  \- com.google.guava:guava:jar:15.0:compile-->
+                                <!--[INFO] \- com.github.scopt:scopt_2.10:jar:3.2.0:compile-->
+
+
+                                <artifactItem>
+                                    <groupId>${project.groupId}</groupId>
+                                    <artifactId>${project.artifactId}</artifactId>
+                                    <version>${project.version}</version>
+                                    <type>${project.packaging}</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.scala-lang</groupId>
+                                    <artifactId>scala-compiler</artifactId>
+                                    <version>${scala-version}</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.scala-lang</groupId>
+                                    <artifactId>scala-reflect</artifactId>
+                                    <version>${scala-version}</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.scala-lang</groupId>
+                                    <artifactId>scala-library</artifactId>
+                                    <version>${scala-version}</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.scala-lang</groupId>
+                                    <artifactId>scalap</artifactId>
+                                    <version>${scala-version}</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>com.sksamuel.elastic4s</groupId>
+                                    <artifactId>elastic4s_2.10</artifactId>
+                                    <version>1.3.3</version>
+                                </artifactItem>
+
+                                <artifactItem>
+                                    <groupId>com.typesafe.akka</groupId>
+                                    <artifactId>akka-actor_2.10</artifactId>
+                                    <version>${akka-version}</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>io.spray</groupId>
+                                    <artifactId>spray-routing_2.10</artifactId>
+                                    <version>${spray-version}</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>io.spray</groupId>
+                                    <artifactId>spray-json_2.10</artifactId>
+                                    <version>1.3.1</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>io.spray</groupId>
+                                    <artifactId>spray-can_2.10</artifactId>
+                                    <version>${spray-version}</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>io.spray</groupId>
+                                    <artifactId>spray-httpx_2.10</artifactId>
+                                    <version>${spray-version}</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>io.spray</groupId>
+                                    <artifactId>spray-client_2.10</artifactId>
+                                    <version>${spray-version}</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.slf4j</groupId>
+                                    <artifactId>slf4j-api</artifactId>
+                                    <version>1.7.6</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.slf4j</groupId>
+                                    <artifactId>slf4j-log4j12</artifactId>
+                                    <version>1.7.6</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>log4j</groupId>
+                                    <artifactId>log4j</artifactId>
+                                    <version>1.2.17</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.json4s</groupId>
+                                    <artifactId>json4s-jackson_2.10</artifactId>
+                                    <version>3.2.7</version>
+                                </artifactItem>
+
+
+                                <artifactItem>
+                                    <groupId>com.fasterxml.jackson.core</groupId>
+                                    <artifactId>jackson-core</artifactId>
+                                    <version>2.4.1</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>com.fasterxml.jackson.core</groupId>
+                                    <artifactId>jackson-databind</artifactId>
+                                    <version>2.4.1</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>com.fasterxml.jackson.module</groupId>
+                                    <artifactId>jackson-module-scala_2.10</artifactId>
+                                    <version>2.4.1</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>com.github.scopt</groupId>
+                                    <artifactId>scopt_2.10</artifactId>
+                                    <version>3.2.0</version>
+                                </artifactItem>
+
+                                <artifactItem>
+                                    <groupId>com.typesafe</groupId>
+                                    <artifactId>config</artifactId>
+                                    <version>1.2.1</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>io.spray</groupId>
+                                    <artifactId>spray-util_2.10</artifactId>
+                                    <version>${spray-version}</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>com.chuusai</groupId>
+                                    <artifactId>shapeless_2.10</artifactId>
+                                    <version>1.2.4</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>io.spray</groupId>
+                                    <artifactId>spray-http_2.10</artifactId>
+                                    <version>${spray-version}</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>io.spray</groupId>
+                                    <artifactId>spray-io_2.10</artifactId>
+                                    <version>${spray-version}</version>
+                                </artifactItem>
+
+                                <artifactItem>
+                                    <groupId>org.parboiled</groupId>
+                                    <artifactId>parboiled-scala_2.10</artifactId>
+                                    <version>1.1.6</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.parboiled</groupId>
+                                    <artifactId>parboiled-core</artifactId>
+                                    <version>1.1.6</version>
+                                </artifactItem>
+
+                                <artifactItem>
+                                    <groupId>org.jvnet.mimepull</groupId>
+                                    <artifactId>mimepull</artifactId>
+                                    <version>1.9.4</version>
+                                </artifactItem>
+
+                                <artifactItem>
+                                    <groupId>org.elasticsearch</groupId>
+                                    <artifactId>elasticsearch</artifactId>
+                                    <version>1.3.2</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.apache.lucene</groupId>
+                                    <artifactId>lucene-core</artifactId>
+                                    <version>4.9.0</version>
+                                </artifactItem>
+
+                            </artifactItems>
+                            <outputDirectory>${project.basedir}/dist/lib</outputDirectory>
+                            <overWriteReleases>false</overWriteReleases>
+                            <overWriteSnapshots>true</overWriteSnapshots>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.scala-tools</groupId>
                 <artifactId>maven-scala-plugin</artifactId>
                 <executions>

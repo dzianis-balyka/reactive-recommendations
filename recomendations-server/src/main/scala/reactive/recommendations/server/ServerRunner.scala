@@ -55,4 +55,4 @@ object ServerRunner {
 
 }
 
-case class ServerConfig(host: String = "localhost", port: Int = 8080)
+case class ServerConfig(host: String = "0.0.0.0", port: Int = 8989)
