@@ -9,8 +9,9 @@
     <packaging>pom</packaging>
     <version>0.1</version>
     <modules>
-        <module>recomendations-commons</module>
-        <module>recomendations-server</module>
+        <module>recommendations-server</module>
+        <module>recommendations-commons</module>
+        <module>history-windows</module>
     </modules>
 
     <properties>
@@ -35,6 +36,8 @@
         <javadoc.version>2.9</javadoc.version>
         <maven.resources.plugin.version>2.6</maven.resources.plugin.version>
         <final.name>${project.artifactId}-${project.version}</final.name>
+
+        <hbase.version>0.98.6-cdh5.2.0</hbase.version>
     </properties>
 
     <repositories>
