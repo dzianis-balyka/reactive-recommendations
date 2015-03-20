@@ -63,10 +63,10 @@ trait Service extends HttpService {
     path("recommend") {
       get {
         parameter('uid, 'limit.as[Option[Int]]) {
-          (uid, limit) =>
+          (uid: String, limit: Int) =>
             respondWithMediaType(MediaTypes.`application/json`) {
               complete {
-                ElasticServices.findItemsForUser(uid,limit).map {
+                ElasticServices.findItemsForUser(uid, limit).map {
                   items =>
                     Recommendation(uid, items)
                 }

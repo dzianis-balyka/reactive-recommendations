@@ -3,6 +3,7 @@ package reactive.recommendations.server
 import java.util.concurrent.Executors
 
 import org.elasticsearch.action.index.IndexResponse
+import org.elasticsearch.action.update.UpdateRequest
 import org.elasticsearch.search.sort.SortOrder
 import org.slf4j.LoggerFactory
 import reactive.recommendations.server.akka.{User, Action, Item}
@@ -117,6 +118,9 @@ object ElasticServices {
     }
   }
 
+
+
+
   def findItemsForUser(userId: String, limit: Option[Int] = None): Future[Array[String]] = {
 
     findCategoriesTags(userId).flatMap {
@@ -177,6 +181,8 @@ object ElasticServices {
 
     log.info("" + Action(user = "uuu", item = "itm", action = "act").productIterator.toBuffer)
     //    log.info("" + findItemsForUser("u1").await.toBuffer)
+
+    client.execute( update)
 
   }
 
