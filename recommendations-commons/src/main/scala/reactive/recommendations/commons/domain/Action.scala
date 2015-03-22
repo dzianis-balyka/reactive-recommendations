@@ -6,6 +6,11 @@ import scala.collection.Set
 /**
  * Created by denik on 14.03.2015.
  */
-case class Action(ts: Long = System.currentTimeMillis(), user: String, item: String, action: String, params: collection.Map[String, String] = Map[String, String]()) {
-
+case class Action(
+                   id: String,
+                   ts: String,
+                   user: String,
+                   item: String,
+                   actionType: String,
+                   params: Map[String, String] = Map[String, String]()) {
 }

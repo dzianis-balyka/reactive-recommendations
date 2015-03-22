@@ -1,14 +1,15 @@
 package reactive.recommendations.server.akka
 
+import java.util.Date
 import java.util.concurrent.Executors
 
 import akka.actor.{Props, Actor}
+import org.json4s.{NoTypeHints, Formats}
+import org.json4s.jackson.Serialization
+import reactive.recommendations.commons.domain.{Recommendation, User, ContentItem, Action}
 import reactive.recommendations.server.ElasticServices
-import spray.client.pipelining._
 import spray.http.{StatusCode, HttpResponse, HttpRequest, MediaTypes}
-import spray.json.DefaultJsonProtocol
 import spray.json.DefaultJsonProtocol._
-import spray.httpx.SprayJsonSupport
 import spray.httpx.SprayJsonSupport._
 
 
@@ -37,25 +38,14 @@ class ServiceUI extends Actor with Service {
 }
 
 
-case class Recommendation(user: String, items: Array[String])
-
-case class Action(ts: Long = System.currentTimeMillis(), user: String, item: String, action: String, params: Map[String, String] = Map[String, String]()) {
-  def id(): String = {
-    "%1$s-%2$s-%3$s-%4$s".format(ts, user, item, action)
-  }
-}
-
-case class Item(id: String, createdTs: Long = System.currentTimeMillis(), tags: Set[String] = Set[String](), categories: Set[String] = Set[String]())
-
-case class User(id: String)
-
-
 trait Service extends HttpService {
 
-  implicit val reco = jsonFormat2(Recommendation)
-  implicit val act = jsonFormat5(Action)
-  implicit val itm = jsonFormat4(Item)
-  implicit val usr = jsonFormat1(User)
+  implicit def json4sFormats: Formats = Serialization.formats(NoTypeHints)
+
+  implicit val reco = jsonFormat3(Recommendation)
+  implicit val act = jsonFormat6(Action)
+  implicit val itm = jsonFormat7(ContentItem)
+  implicit val usr = jsonFormat5(User)
   implicit val ec = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(10))
   val detachEc = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(10))
 
@@ -63,12 +53,12 @@ trait Service extends HttpService {
     path("recommend") {
       get {
         parameter('uid, 'limit.as[Option[Int]]) {
-          (uid: String, limit: Int) =>
+          (uid: String, limit: Option[Int]) =>
             respondWithMediaType(MediaTypes.`application/json`) {
               complete {
                 ElasticServices.findItemsForUser(uid, limit).map {
                   items =>
-                    Recommendation(uid, items)
+                    Recommendation(uid, items, Map[String, Array[String]]())
                 }
               }
             }
@@ -81,7 +71,7 @@ trait Service extends HttpService {
             (ts: Option[Long], uid: String, item: String, t: String) =>
               detach(detachEc) {
                 complete {
-                  ElasticServices.indexAction(Action(ts.getOrElse(System.currentTimeMillis()), uid, item, t)).map {
+                  ElasticServices.indexAction(Action("" + System.currentTimeMillis(), "" + new Date(), uid, item, t)).map {
                     ir =>
                       StatusCode.int2StatusCode(200)
                   }
@@ -102,29 +92,43 @@ trait Service extends HttpService {
           }
       } ~
       path("user") {
-        (get | post) {
-          complete {
-            StatusCode.int2StatusCode(404)
-          }
-        }
-      } ~
-      path("item") {
         get {
-          parameters('id, 'ts.as[Option[Long]], 'tag, 'category) {
-            (id: String, ts: Option[Long], tag: String, category: String) =>
-              parameterMultiMap {
-                pmp =>
-                  complete {
-                    ElasticServices.indexItem(Item(id, ts.getOrElse(System.currentTimeMillis()), pmp.get("tag").get.toSet, pmp.get("category").get.toSet)).map {
-                      ir =>
-                        StatusCode.int2StatusCode(200)
-                    }
-                  }
+          parameters('id, 'ts.as[Option[String]], 'tags.as[Option[String]], 'categories.as[Option[String]], 'terms.as[Option[String]], 'author.as[Option[String]]) {
+            (id: String, ts: Option[String], tags: Option[String], categories: Option[String], terms: Option[String], author: Option[String]) =>
+              complete {
+                ElasticServices.indexItem(ContentItem(id, ts, tags.map(_.split(",").toSet), categories.map(_.split(",").toSet), terms.map(_.split(",").toSet), author)).map {
+                  ir =>
+                    StatusCode.int2StatusCode(200)
+                }
               }
           }
         } ~
           post {
-            entity(as[Item]) {
+            entity(as[ContentItem]) {
+              item =>
+                complete {
+                  ElasticServices.indexItem(item).map {
+                    ir =>
+                      StatusCode.int2StatusCode(200)
+                  }
+                }
+            }
+          }
+      } ~
+      path("item") {
+        get {
+          parameters('id, 'ts.as[Option[String]], 'tags.as[Option[String]], 'categories.as[Option[String]], 'terms.as[Option[String]], 'author.as[Option[String]]) {
+            (id: String, ts: Option[String], tags: Option[String], categories: Option[String], terms: Option[String], author: Option[String]) =>
+              complete {
+                ElasticServices.indexItem(ContentItem(id, ts, tags.map(_.split(",").toSet), categories.map(_.split(",").toSet), terms.map(_.split(",").toSet), author)).map {
+                  ir =>
+                    StatusCode.int2StatusCode(200)
+                }
+              }
+          }
+        } ~
+          post {
+            entity(as[ContentItem]) {
               item =>
                 complete {
                   ElasticServices.indexItem(item).map {

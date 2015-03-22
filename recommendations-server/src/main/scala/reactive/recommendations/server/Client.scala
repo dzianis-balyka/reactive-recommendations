@@ -1,8 +1,10 @@
 package reactive.recommendations.server
 
+import java.util.Date
+
 import _root_.akka.actor.ActorSystem
 import com.sksamuel.elastic4s.ElasticClient
-import reactive.recommendations.server.akka.{Action, Item, Recommendation}
+import reactive.recommendations.commons.domain.{ContentItem, Action, Recommendation}
 import spray.http._
 import spray.client.pipelining._
 import org.slf4j.LoggerFactory
@@ -23,9 +25,9 @@ import scala.concurrent.Future
  */
 object Client {
 
-  implicit val reco = jsonFormat2(Recommendation)
-  implicit val act = jsonFormat5(Action)
-  implicit val itm = jsonFormat4(Item)
+  implicit val reco = jsonFormat3(Recommendation)
+  implicit val act = jsonFormat6(Action)
+  implicit val itm = jsonFormat7(ContentItem)
 
   val log = LoggerFactory.getLogger(ServerRunner.getClass)
 
@@ -39,9 +41,9 @@ object Client {
 
     val pipeline: HttpRequest => Future[HttpResponse] = sendReceive
 
-    val action = Action(System.currentTimeMillis(), "i1", "u22", "view")
+    val action = Action("" + System.currentTimeMillis(), "" + new Date(), "i1", "u22", "view")
 
-    val response: Future[HttpResponse] = pipeline(Post("http://localhost:9200/actions/action/%1$s".format(action.id()), action))
+    val response: Future[HttpResponse] = pipeline(Post("http://localhost:9200/actions/action/%1$s".format(action.id), action))
 
     response.onComplete {
       t =>
