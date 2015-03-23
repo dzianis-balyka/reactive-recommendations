@@ -4,10 +4,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.concurrent.{TimeUnit, Executors}
 
-import com.sksamuel.elastic4s.mappings.FieldType.{DateType, StringType}
+import com.sksamuel.elastic4s.mappings.FieldType.{LongType, DateType, StringType}
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse
+import org.elasticsearch.action.bulk.BulkResponse
 import org.elasticsearch.action.index.IndexResponse
-import org.elasticsearch.action.update.UpdateRequest
+import org.elasticsearch.action.update.{UpdateResponse, UpdateRequest}
 import org.elasticsearch.search.SearchHit
 import org.elasticsearch.search.sort.SortOrder
 import org.slf4j.LoggerFactory
@@ -54,7 +55,8 @@ object ElasticServices {
         "sex" typed StringType,
         "geo" typed StringType,
         "age" typed StringType,
-        "l10n" typed StringType
+        "l10n" typed StringType,
+        "actionsCount" typed LongType
         )
 
       )
@@ -134,7 +136,7 @@ object ElasticServices {
     index into "actions/action" id (action.id) fields (docFields)
   }
 
-  def indexMonthlyInterest(action: Action, user: User, item: ContentItem): Future[IndexResponse] = client.execute {
+  def indexMonthlyInterest(action: Action, user: User, item: ContentItem): Future[BulkResponse] = {
     val sdf = new SimpleDateFormat("yyyy-MM")
     val docFields = collection.mutable.Map[String, Any]()
     val docId = "%1$s_%2$s".format(user.id, sdf.format(action.tsAsDate().getOrElse(new Date())))
@@ -158,7 +160,23 @@ object ElasticServices {
         docFields += ("sex" -> v)
     }
 
-    index into "profiles/intervalInterest" id (docId) fields (docFields)
+    docFields += ("actionsCount" -> 0)
+
+    client.execute {
+      bulk(
+        update(docId) in ("profiles/intervalInterest") docAsUpsert (docFields),
+        update(docId) in ("profiles/intervalInterest") script (
+          """
+            |
+            |
+            |if(!ctx._source.containsKey('ac')){
+            | ctx._source.ac = count
+            | } else {
+            | ctx._source.ac += count
+            | }
+          """.stripMargin) params (Map("count" -> 3))
+      )
+    }
   }
 
   def indexItem(item: ContentItem): Future[IndexResponse] = client.execute {
@@ -404,8 +422,8 @@ object ElasticServices {
   def main(args: Array[String]) = {
     val sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSS")
 
-    //    deleteIndexes()
-    //    createIndexes()
+    //        deleteIndexes()
+    //        createIndexes()
 
     val u = User("u1", Some("male"), Some("1979-11-29"), Some("Minsk"), Some(Set[String]("cat1", "cat2")))
     val i = ContentItem("ci1", Some("2015-01-01T09:08:07.123"), Some(Set[String]("tag1", "tag2")), Some(Set[String]("cat1", "cat2")), Some(Set[String]("term1", "term2")), Some("author"), None)
@@ -413,10 +431,10 @@ object ElasticServices {
 
     implicit val d = Duration(30, TimeUnit.SECONDS)
 
-    //    log.info("" + indexUser(User("u1", Some("male"), Some("1979-11-29"), Some("Minsk"), Some(Set[String]("cat1", "cat2")))).await)
-    //    log.info("" + indexItem(ContentItem("ci1", Some("2015-01-01T09:08:07.123"), Some(Set[String]("tag1", "tag2")), Some(Set[String]("cat1", "cat2")), Some(Set[String]("term1", "term2")), Some("author"), None)).await)
+    //    log.info("" + indexUser(u).await)
+    //    log.info("" + indexItem(i).await)
     // log.info("" + indexAction(Action("a1", sdf.format(new Date()), "u1", "ci1", "view")).await)
-    log.info("" + indexMonthlyInterest(a, u, i).await)
+    log.info("" + indexMonthlyInterest(a, u, i).await.buildFailureMessage())
 
 
   }
