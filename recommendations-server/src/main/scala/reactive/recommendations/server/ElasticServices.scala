@@ -88,33 +88,77 @@ object ElasticServices {
   }
 
 
-  def indexAction(action: Action): Future[Option[IndexResponse]] = {
+  def indexActionLogic(action: Action): Future[Boolean] = {
 
-    findItem(action.item).map {
-      cio =>
-        cio.map {
-          ci =>
-            log.info("" + ci)
-            Some(client.execute {
-              val docFields = collection.mutable.Map[String, Any]()
-              docFields += ("id" -> action.id)
-              docFields += ("item" -> action.item)
-              docFields += ("user" -> action.user)
-              docFields += ("type" -> action.actionType)
-              docFields += ("ts" -> action.ts)
+    val itemFuture = findItem(action.item)
+    val userFuture = findUser(action.user)
 
-              //TODO
-              // find content item
-              // index user monthly interest yyyy-MM->axes data + counts
-              // index tops
-              // index monthly interest
+    val iuf = for {
+      item <- itemFuture
+      user <- userFuture
+    } yield (item, user)
 
-              index into "actions/action" id (action.id) fields (docFields)
-            })
-        }
+    iuf.map {
+      iuo =>
+
+        val itemUserOption = for {
+          i <- iuo._1
+          u <- iuo._2
+        } yield (i, u)
+
+        itemUserOption.map {
+          itemUser =>
+
+            //TODO
+            // find content item
+            // index user monthly interest yyyy-MM->axes data + counts
+            // index tops
+            // index monthly interest
+
+            indexAction(action)
+            true
+        }.getOrElse(false)
 
     }
 
+  }
+
+
+  def indexAction(action: Action): Future[IndexResponse] = client.execute {
+    val docFields = collection.mutable.Map[String, Any]()
+    docFields += ("id" -> action.id)
+    docFields += ("item" -> action.item)
+    docFields += ("user" -> action.user)
+    docFields += ("type" -> action.actionType)
+    docFields += ("ts" -> action.ts)
+    index into "actions/action" id (action.id) fields (docFields)
+  }
+
+  def indexMonthlyInterest(action: Action, user: User, item: ContentItem): Future[IndexResponse] = client.execute {
+    val sdf = new SimpleDateFormat("yyyy-MM")
+    val docFields = collection.mutable.Map[String, Any]()
+    val docId = "%1$s_%2$s".format(user.id, sdf.format(action.tsAsDate().getOrElse(new Date())))
+
+    docFields += ("id" -> docId)
+
+    user.birthDate.map {
+      v =>
+        docFields += ("birthDate" -> v)
+    }
+    user.categories.map {
+      v =>
+        docFields += ("categories" -> v.toArray)
+    }
+    user.geo.map {
+      v =>
+        docFields += ("geo" -> v)
+    }
+    user.sex.map {
+      v =>
+        docFields += ("sex" -> v)
+    }
+
+    index into "profiles/intervalInterest" id (docId) fields (docFields)
   }
 
   def indexItem(item: ContentItem): Future[IndexResponse] = client.execute {
@@ -202,7 +246,23 @@ object ElasticServices {
           None
         } else {
           val hits = sr.getHits.hits()(0)
-          Some(ContentItem("id", Some("ts"), extractValues(hits, "tags"), extractValues(hits, "categories"), extractValues(hits, "terms"), extractValue(hits, "author"), extractValues(hits, "l10n")))
+          Some(ContentItem(itemId, Some("ts"), extractValues(hits, "tags"), extractValues(hits, "categories"), extractValues(hits, "terms"), extractValue(hits, "author"), extractValues(hits, "l10n")))
+        }
+    }
+  }
+
+  def findUser(userId: String): Future[Option[User]] = {
+    client.execute {
+      search in "profiles" types "user" fields("sex", "birthDate", "geo", "categories", "l10n") query {
+        ids(userId)
+      } limit (1)
+    }.map {
+      sr =>
+        if (sr.getHits.hits().isEmpty) {
+          None
+        } else {
+          val hits = sr.getHits.hits()(0)
+          Some(User(userId, extractValue(hits, "sex"), extractValue(hits, "birthDate"), extractValue(hits, "geo"), extractValues(hits, "l10n")))
         }
     }
   }
@@ -347,11 +407,16 @@ object ElasticServices {
     //    deleteIndexes()
     //    createIndexes()
 
+    val u = User("u1", Some("male"), Some("1979-11-29"), Some("Minsk"), Some(Set[String]("cat1", "cat2")))
+    val i = ContentItem("ci1", Some("2015-01-01T09:08:07.123"), Some(Set[String]("tag1", "tag2")), Some(Set[String]("cat1", "cat2")), Some(Set[String]("term1", "term2")), Some("author"), None)
+    val a = Action("a1", sdf.format(new Date()), "u1", "ci1", "view")
+
     implicit val d = Duration(30, TimeUnit.SECONDS)
 
     //    log.info("" + indexUser(User("u1", Some("male"), Some("1979-11-29"), Some("Minsk"), Some(Set[String]("cat1", "cat2")))).await)
     //    log.info("" + indexItem(ContentItem("ci1", Some("2015-01-01T09:08:07.123"), Some(Set[String]("tag1", "tag2")), Some(Set[String]("cat1", "cat2")), Some(Set[String]("term1", "term2")), Some("author"), None)).await)
-    log.info("" + indexAction(Action("a1", sdf.format(new Date()), "u1", "ci11", "view")).await)
+    // log.info("" + indexAction(Action("a1", sdf.format(new Date()), "u1", "ci1", "view")).await)
+    log.info("" + indexMonthlyInterest(a, u, i).await)
 
 
   }

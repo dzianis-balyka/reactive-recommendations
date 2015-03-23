@@ -18,11 +18,10 @@
             <version>${scala-version}</version>
         </dependency>
         <dependency>
-            <groupId>io.spray</groupId>
-            <artifactId>spray-http_2.10</artifactId>
-            <version>${spray-version}</version>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+            <version>2.7</version>
         </dependency>
-
     </dependencies>
 
 

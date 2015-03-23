@@ -1,5 +1,8 @@
 package reactive.recommendations.commons.domain
 
+import java.text.SimpleDateFormat
+import java.util.Date
+
 import scala.collection
 import scala.collection.Set
 
@@ -13,4 +16,12 @@ case class Action(
                    item: String,
                    actionType: String,
                    params: Map[String, String] = Map[String, String]()) {
+  def tsAsDate(): Option[Date] = {
+    val sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSS")
+    var result: Option[Date] = None
+    try {
+      result = Some(sdf.parse(ts))
+    }
+    result
+  }
 }
