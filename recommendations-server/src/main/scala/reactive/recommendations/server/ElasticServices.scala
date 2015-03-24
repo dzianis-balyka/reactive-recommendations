@@ -10,7 +10,8 @@ import org.elasticsearch.action.bulk.BulkResponse
 import org.elasticsearch.action.index.IndexResponse
 import org.elasticsearch.action.update.{UpdateResponse, UpdateRequest}
 import org.elasticsearch.common.settings.ImmutableSettings
-import org.elasticsearch.search.SearchHit
+import org.elasticsearch.index.get.GetField
+import org.elasticsearch.search.{SearchHitField, SearchHit}
 import org.elasticsearch.search.sort.SortOrder
 import org.slf4j.LoggerFactory
 import reactive.recommendations.commons.domain.Action
@@ -32,7 +33,7 @@ object ElasticServices {
 
   //    val client = ElasticClient.remote("predictio8.hcl.pp.coursmos.com" -> 9300)
   val clusterSettings = ImmutableSettings.settingsBuilder().put("cluster.name", "xyz").build()
-  val client = ElasticClient.remote(clusterSettings, "localhost" -> 9300)
+  val client = ElasticClient.remote(/*clusterSettings,*/ "localhost" -> 9300)
   val defaultLimit = 100
   val defaultInternalLimit = 1000
 
@@ -74,6 +75,7 @@ object ElasticServices {
         "geo" typed StringType,
         "age" typed StringType,
         "l10n" typed StringType,
+        "intervalDate" typed DateType,
         "actionsCount" typed LongType
         )
 
@@ -82,7 +84,7 @@ object ElasticServices {
 
 
   def createItemIndex(): Future[CreateIndexResponse] = client.execute {
-    create index "items" shards 5 replicas 1 mappings (
+    create index "items" shards 5 replicas 1 mappings(
       "item" as(
         "id" typed StringType,
         "version" typed DateType,
@@ -91,8 +93,19 @@ object ElasticServices {
         "terms" typed StringType,
         "categories" typed StringType,
         "l10n" typed StringType
+        ),
+      "itemInterest" as(
+        "id" typed StringType,
+        "author" typed StringType,
+        "tags" typed StringType,
+        "terms" typed StringType,
+        "categories" typed StringType,
+        "l10n" typed StringType,
+        "intervalDate" typed DateType,
+        "actionsCount" typed LongType
         )
       )
+
   }
 
   def createActionIndex(): Future[CreateIndexResponse] = client.execute {
@@ -108,37 +121,34 @@ object ElasticServices {
   }
 
 
-  def indexActionLogic(action: Action): Future[Boolean] = {
+  def indexActionLogic(action: Action): Future[Option[BulkResponse]] = {
 
-    val itemFuture = findItem(action.item)
-    val userFuture = findUser(action.user)
 
-    val iuf = for {
-      item <- itemFuture
-      user <- userFuture
-    } yield (item, user)
+    client.execute {
+      multiget(
+        get id action.user from "profiles/user" fields ("sex"),
+        get id action.item from "items/item" fetchSourceContext (true)
+      )
+    }.flatMap {
+      mgr =>
+        if (mgr.getResponses()(0).getResponse.isExists && mgr.getResponses()(1).getResponse.isExists) {
+          val userFields = mgr.getResponses()(0).getResponse.getSource
+          val itemFields = mgr.getResponses()(1).getResponse.getSource
+          val item = ContentItem(action.item, Some("ts"), extractValues(itemFields, "tags"), extractValues(itemFields, "categories"), extractValues(itemFields, "terms"), extractValue(itemFields, "author"), extractValues(itemFields, "l10n"))
+          val user = User(action.user, extractValue(userFields, "sex"), extractValue(userFields, "birthDate"), extractValue(userFields, "geo"), extractValues(userFields, "l10n"))
 
-    iuf.map {
-      iuo =>
+          log.info("" + item)
+          log.info("" + user)
 
-        val itemUserOption = for {
-          i <- iuo._1
-          u <- iuo._2
-        } yield (i, u)
-
-        itemUserOption.map {
-          itemUser =>
-
-            //TODO
-            // find content item
-            // index user monthly interest yyyy-MM->axes data + counts
-            // index tops
-            // index monthly interest
-
-            indexAction(action)
-            true
-        }.getOrElse(false)
-
+          indexMonthlyInterest(action, user, item).map {
+            br =>
+              Some(br)
+          }
+        } else {
+          Future {
+            None
+          }
+        }
     }
 
   }
@@ -160,7 +170,7 @@ object ElasticServices {
     val docId = "%1$s_%2$s".format(user.id, sdf.format(action.tsAsDate().getOrElse(new Date())))
 
     docFields += ("id" -> docId)
-
+    docFields += ("intervalDate" -> sdf.format(action.tsAsDate().getOrElse(new Date())))
     user.age().map {
       v =>
         docFields += ("age" -> v)
@@ -211,9 +221,62 @@ object ElasticServices {
     log.info("" + deltaScript.toString())
     log.info("" + deltaParams)
 
+
+    val itemDocId = "%1$s_%2$s".format(item.id, sdf.format(action.tsAsDate().getOrElse(new Date())))
+    val itemDocFields = collection.mutable.Map[String, Any]()
+
+    itemDocFields += ("id" -> docId)
+    itemDocFields += ("intervalDate" -> sdf.format(action.tsAsDate().getOrElse(new Date())))
+    item.author.map {
+      v =>
+        itemDocFields += ("author" -> v)
+    }
+    item.categories.map {
+      v =>
+        itemDocFields += ("categories" -> v.toArray)
+    }
+    item.tags.map {
+      v =>
+        itemDocFields += ("tags" -> v.toArray)
+    }
+    item.terms.map {
+      v =>
+        itemDocFields += ("terms" -> v.toArray)
+    }
+    item.l10n.map {
+      v =>
+        itemDocFields += ("l10n" -> v)
+    }
+
+    val itemDeltaScript = new StringBuilder()
+    val itemDeltaParams = collection.mutable.Map[String, Any]()
+    appendToScript(deltaScript, deltaParams, Some(itemDocFields), false, "actionsCount", "ac", 1)
+    user.age().map {
+      v =>
+        appendToScript(itemDeltaScript, itemDeltaParams, Some(itemDocFields), false, "a_%1$s".format(v), "p_a_%1$s".format(v), 1)
+    }
+    user.geo.map {
+      v =>
+        appendToScript(itemDeltaScript, itemDeltaParams, Some(itemDocFields), false, "g_%1$s".format(v), "p_g_%1$s".format(v), 1)
+    }
+    user.sex.map {
+      v =>
+        appendToScript(itemDeltaScript, itemDeltaParams, Some(itemDocFields), false, "s_%1$s".format(v), "p_s_%1$s".format(v), 1)
+    }
+
+
+    val actionDocFields = collection.mutable.Map[String, Any]()
+    actionDocFields += ("id" -> action.id)
+    actionDocFields += ("item" -> action.item)
+    actionDocFields += ("user" -> action.user)
+    actionDocFields += ("type" -> action.actionType)
+    actionDocFields += ("ts" -> action.ts)
+
     client.execute {
       bulk(
-        update(docId) in ("profiles/intervalInterest") script (deltaScript.toString()) params (deltaParams.toMap) upsert (docFields)
+        index into "actions/action" id (action.id) fields (actionDocFields),
+        update(docId) in ("profiles/intervalInterest") script (deltaScript.toString()) params (deltaParams.toMap) upsert (docFields),
+        update(itemDocId) in ("items/intervalInterest") script (itemDeltaScript.toString()) params (itemDeltaParams.toMap) upsert (itemDocFields)
       )
     }
   }
@@ -307,49 +370,17 @@ object ElasticServices {
   }
 
 
-  def findItem(itemId: String): Future[Option[ContentItem]] = {
-    client.execute {
-      search in "items" types "item" fields("terms", "categories", "tags", "author") query {
-        ids(itemId)
-      } limit (1)
-    }.map {
-      sr =>
-        if (sr.getHits.hits().isEmpty) {
-          None
-        } else {
-          val hits = sr.getHits.hits()(0)
-          Some(ContentItem(itemId, Some("ts"), extractValues(hits, "tags"), extractValues(hits, "categories"), extractValues(hits, "terms"), extractValue(hits, "author"), extractValues(hits, "l10n")))
-        }
-    }
-  }
-
-  def findUser(userId: String): Future[Option[User]] = {
-    client.execute {
-      search in "profiles" types "user" fields("sex", "birthDate", "geo", "categories", "l10n") query {
-        ids(userId)
-      } limit (1)
-    }.map {
-      sr =>
-        if (sr.getHits.hits().isEmpty) {
-          None
-        } else {
-          val hits = sr.getHits.hits()(0)
-          Some(User(userId, extractValue(hits, "sex"), extractValue(hits, "birthDate"), extractValue(hits, "geo"), extractValues(hits, "l10n")))
-        }
-    }
-  }
-
-  def extractValues(sh: SearchHit, fn: String): Option[Set[String]] = {
-    if (sh.fields().containsKey(fn)) {
-      Some(sh.fields().get(fn).values().map("" + _).toSet)
+  def extractValues(fields: collection.Map[String, Any], fn: String): Option[Set[String]] = {
+    if (fields.containsKey(fn)) {
+      Some(fields.get(fn).get.asInstanceOf[java.util.Collection[Any]].map("" + _).toSet)
     } else {
       None
     }
   }
 
-  def extractValue(sh: SearchHit, fn: String): Option[String] = {
-    if (sh.fields().containsKey(fn)) {
-      Some(sh.fields().get(fn).value[String]())
+  def extractValue(fields: collection.Map[String, Any], fn: String): Option[String] = {
+    if (fields.containsKey(fn)) {
+      Some(fields.get(fn).get.toString)
     } else {
       None
     }
@@ -476,8 +507,8 @@ object ElasticServices {
   def main(args: Array[String]) = {
     val sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSS")
 
-    //    deleteIndexes()
-    //    createIndexes()
+    deleteIndexes()
+    createIndexes()
 
     val u = User("u1", Some("male"), Some("1979-11-29"), Some("Minsk"), Some(Set[String]("cat1", "cat2")))
     val i = ContentItem("ci1", Some("2015-01-01T09:08:07.123"), Some(Set[String]("tag1", "tag2")), Some(Set[String]("cat1", "cat2")), Some(Set[String]("term1", "term2")), Some("author"), None)
@@ -485,10 +516,9 @@ object ElasticServices {
 
     implicit val d = Duration(30, TimeUnit.SECONDS)
 
-    //    log.info("" + indexUser(u).await)
-    //    log.info("" + indexItem(i).await)
-    // log.info("" + indexAction(Action("a1", sdf.format(new Date()), "u1", "ci1", "view")).await)
-    log.info("" + indexMonthlyInterest(a, u, i).await.buildFailureMessage())
+    log.info("" + indexUser(u).await)
+    log.info("" + indexItem(i).await)
+    log.info("" + indexActionLogic(a).await.map { br => br.buildFailureMessage()}.getOrElse("None"))
 
 
   }
