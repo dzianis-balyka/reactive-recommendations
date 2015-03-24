@@ -9,5 +9,3 @@ TODO
 - add "find similar users by actions"
 
 
-to work from windows - open ports
-netsh advfirewall firewall add rule name=AllowRPCCommunication dir=in action=allow protocol=TCP localport=49152-65535

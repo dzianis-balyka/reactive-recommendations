@@ -9,6 +9,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse
 import org.elasticsearch.action.bulk.BulkResponse
 import org.elasticsearch.action.index.IndexResponse
 import org.elasticsearch.action.update.{UpdateResponse, UpdateRequest}
+import org.elasticsearch.common.settings.ImmutableSettings
 import org.elasticsearch.search.SearchHit
 import org.elasticsearch.search.sort.SortOrder
 import org.slf4j.LoggerFactory
@@ -30,11 +31,28 @@ object ElasticServices {
   implicit val ec = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(10))
 
   //    val client = ElasticClient.remote("predictio8.hcl.pp.coursmos.com" -> 9300)
-  val client = ElasticClient.remote("localhost" -> 9300)
+  val clusterSettings = ImmutableSettings.settingsBuilder().put("cluster.name", "xyz").build()
+  val client = ElasticClient.remote(clusterSettings, "localhost" -> 9300)
   val defaultLimit = 100
   val defaultInternalLimit = 1000
 
   val log = LoggerFactory.getLogger(ServerRunner.getClass)
+
+  val incrementTemplate =
+    """
+      |if(!ctx._source.containsKey('%1$s')){
+      | ctx._source.%1$s = %2$s
+      |} else {
+      | ctx._source.%1$s += %2$s
+      |}
+    """.stripMargin
+
+  val putTemplate =
+    """
+      |if(!ctx._source.containsKey('%1$s')){
+      | ctx._source.%1$s = %2$s
+      |}
+    """.stripMargin
 
 
   def createProfileIndex(): Future[CreateIndexResponse] = client.execute {
@@ -143,9 +161,9 @@ object ElasticServices {
 
     docFields += ("id" -> docId)
 
-    user.birthDate.map {
+    user.age().map {
       v =>
-        docFields += ("birthDate" -> v)
+        docFields += ("age" -> v)
     }
     user.categories.map {
       v =>
@@ -160,22 +178,58 @@ object ElasticServices {
         docFields += ("sex" -> v)
     }
 
-    docFields += ("actionsCount" -> 0)
+    val deltaScript = new StringBuilder()
+    val deltaParams = collection.mutable.Map[String, Any]()
+
+    appendToScript(deltaScript, deltaParams, Some(docFields), false, "actionsCount", "ac", 1)
+
+    item.categories.foreach {
+      catOption =>
+        catOption.foreach {
+          cat =>
+            appendToScript(deltaScript, deltaParams, Some(docFields), false, "c_%1$s".format(cat), "p_c_%1$s".format(cat), 1)
+        }
+    }
+
+    item.tags.foreach {
+      catOption =>
+        catOption.foreach {
+          cat =>
+            appendToScript(deltaScript, deltaParams, Some(docFields), false, "tg_%1$s".format(cat), "p_tg_%1$s".format(cat), 1)
+        }
+    }
+
+    item.terms.foreach {
+      catOption =>
+        catOption.foreach {
+          cat =>
+            appendToScript(deltaScript, deltaParams, Some(docFields), false, "t_%1$s".format(cat), "p_t_%1$s".format(cat), 1)
+        }
+    }
+
+
+    log.info("" + deltaScript.toString())
+    log.info("" + deltaParams)
 
     client.execute {
       bulk(
-        update(docId) in ("profiles/intervalInterest") docAsUpsert (docFields),
-        update(docId) in ("profiles/intervalInterest") script (
-          """
-            |
-            |
-            |if(!ctx._source.containsKey('ac')){
-            | ctx._source.ac = count
-            | } else {
-            | ctx._source.ac += count
-            | }
-          """.stripMargin) params (Map("count" -> 3))
+        update(docId) in ("profiles/intervalInterest") script (deltaScript.toString()) params (deltaParams.toMap) upsert (docFields)
       )
+    }
+  }
+
+
+  def appendToScript(script: StringBuilder, params: collection.mutable.Map[String, Any], upsertParams: Option[collection.mutable.Map[String, Any]], isPut: Boolean, property: String, pn: String, value: Any): Unit = {
+    script.append(
+      (if (isPut) {
+        putTemplate
+      } else {
+        incrementTemplate
+      }).format(property, pn))
+    params += (pn -> value)
+    upsertParams.map {
+      p =>
+        p += (property -> value)
     }
   }
 
@@ -422,8 +476,8 @@ object ElasticServices {
   def main(args: Array[String]) = {
     val sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSS")
 
-    //        deleteIndexes()
-    //        createIndexes()
+    //    deleteIndexes()
+    //    createIndexes()
 
     val u = User("u1", Some("male"), Some("1979-11-29"), Some("Minsk"), Some(Set[String]("cat1", "cat2")))
     val i = ContentItem("ci1", Some("2015-01-01T09:08:07.123"), Some(Set[String]("tag1", "tag2")), Some(Set[String]("cat1", "cat2")), Some(Set[String]("term1", "term2")), Some("author"), None)
