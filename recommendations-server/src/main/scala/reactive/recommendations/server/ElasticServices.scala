@@ -128,7 +128,7 @@ object ElasticServices {
     ContentItem(extractValue(fields, "id").get, extractValue(fields, "ts"), extractValues(fields, "tags"), extractValues(fields, "categories"), extractValues(fields, "terms"), extractValue(fields, "author"), extractValues(fields, "l10n"))
   }
 
-  def readUserIterest(fields: Map[String, AnyRef]): UserInerest = {
+  def readUserIterest(fields: Map[String, AnyRef]): UserInterest = {
 
 
     var tags = collection.mutable.Map[String, Int]()
@@ -152,7 +152,7 @@ object ElasticServices {
 
     log.info("{}", fields)
 
-    UserInerest(if (extractValue(fields, "id").get.endsWith("_total")) {
+    UserInterest(if (extractValue(fields, "id").get.endsWith("_total")) {
       None
     } else {
       extractValue(fields, "ts")
