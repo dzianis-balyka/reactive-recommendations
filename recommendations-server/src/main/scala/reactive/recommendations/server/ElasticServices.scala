@@ -13,11 +13,11 @@ import org.elasticsearch.common.settings.ImmutableSettings
 import org.elasticsearch.index.get.GetField
 import org.elasticsearch.search.{SearchHitField, SearchHit}
 import org.elasticsearch.search.sort.SortOrder
+import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
-import reactive.recommendations.commons.domain.Action
-import reactive.recommendations.commons.domain.{User, Action, ContentItem}
+import reactive.recommendations.commons.domain._
 import com.sksamuel.elastic4s.ElasticDsl._
-import com.sksamuel.elastic4s.ElasticClient
+import com.sksamuel.elastic4s.{QueryDefinition, ElasticClient}
 import collection.JavaConversions._
 import scala.concurrent.duration.Duration
 
@@ -120,22 +120,59 @@ object ElasticServices {
     }
   }
 
+  def readUser(fields: Map[String, AnyRef]): User = {
+    User(extractValue(fields, "id").get, extractValue(fields, "sex"), extractValue(fields, "birthDate"), extractValue(fields, "geo"), extractValues(fields, "l10n"))
+  }
+
+  def readContentItem(fields: Map[String, AnyRef]): ContentItem = {
+    ContentItem(extractValue(fields, "id").get, extractValue(fields, "ts"), extractValues(fields, "tags"), extractValues(fields, "categories"), extractValues(fields, "terms"), extractValue(fields, "author"), extractValues(fields, "l10n"))
+  }
+
+  def readUserIterest(fields: Map[String, AnyRef]): UserInerest = {
+
+
+    var tags = collection.mutable.Map[String, Int]()
+    var terms = collection.mutable.Map[String, Int]()
+    var categories = collection.mutable.Map[String, Int]()
+
+
+    val tagsR = "tg_(.*)".r
+    val termsR = "t_(.*)".r
+    val cateroriesR = "c_(.*)".r
+
+    fields.foreach {
+      x =>
+        x._1 match {
+          case tagsR(n) => tags += (n -> x._2.toString.toInt)
+          case termsR(n) => terms += (n -> x._2.toString.toInt)
+          case cateroriesR(n) => categories += (n -> x._2.toString.toInt)
+          case _ => {}
+        }
+    }
+
+    log.info("{}", fields)
+
+    UserInerest(if (extractValue(fields, "id").get.endsWith("_total")) {
+      None
+    } else {
+      extractValue(fields, "ts")
+    }, categories, tags, terms, extractValue(fields, "actionsCount").get.toInt)
+  }
+
 
   def indexActionLogic(action: Action): Future[Option[BulkResponse]] = {
 
 
     client.execute {
       multiget(
-        get id action.user from "profiles/user" fields ("sex"),
-        get id action.item from "items/item" fetchSourceContext (true)
+        get id action.user from "profiles/user",
+        get id action.item from "items/item"
       )
     }.flatMap {
       mgr =>
         if (mgr.getResponses()(0).getResponse.isExists && mgr.getResponses()(1).getResponse.isExists) {
-          val userFields = mgr.getResponses()(0).getResponse.getSource
-          val itemFields = mgr.getResponses()(1).getResponse.getSource
-          val item = ContentItem(action.item, Some("ts"), extractValues(itemFields, "tags"), extractValues(itemFields, "categories"), extractValues(itemFields, "terms"), extractValue(itemFields, "author"), extractValues(itemFields, "l10n"))
-          val user = User(action.user, extractValue(userFields, "sex"), extractValue(userFields, "birthDate"), extractValue(userFields, "geo"), extractValues(userFields, "l10n"))
+          val item = readContentItem(mgr.getResponses()(1).getResponse.getSource.toMap)
+          val user = readUser(mgr.getResponses()(0).getResponse.getSource.toMap)
 
           log.info("" + item)
           log.info("" + user)
@@ -168,8 +205,10 @@ object ElasticServices {
     val sdf = new SimpleDateFormat("yyyy-MM")
     val docFields = collection.mutable.Map[String, Any]()
     val docId = "%1$s_%2$s".format(user.id, sdf.format(action.tsAsDate().getOrElse(new Date())))
+    val docIdTotal = "%1$s_total".format(user.id)
 
     docFields += ("id" -> docId)
+    docFields += ("user" -> action.user)
     docFields += ("intervalDate" -> sdf.format(action.tsAsDate().getOrElse(new Date())))
     user.age().map {
       v =>
@@ -223,9 +262,11 @@ object ElasticServices {
 
 
     val itemDocId = "%1$s_%2$s".format(item.id, sdf.format(action.tsAsDate().getOrElse(new Date())))
+    val itemDocIdTotal = "%1$s_total".format(item.id)
     val itemDocFields = collection.mutable.Map[String, Any]()
 
-    itemDocFields += ("id" -> docId)
+    itemDocFields += ("item" -> action.item)
+    itemDocFields += ("id" -> itemDocId)
     itemDocFields += ("intervalDate" -> sdf.format(action.tsAsDate().getOrElse(new Date())))
     item.author.map {
       v =>
@@ -251,6 +292,7 @@ object ElasticServices {
     val itemDeltaScript = new StringBuilder()
     val itemDeltaParams = collection.mutable.Map[String, Any]()
     appendToScript(deltaScript, deltaParams, Some(itemDocFields), false, "actionsCount", "ac", 1)
+    appendToScript(deltaScript, deltaParams, Some(itemDocFields), false, "actionsCount_%1$s".format(action.actionType), "act", 1)
     user.age().map {
       v =>
         appendToScript(itemDeltaScript, itemDeltaParams, Some(itemDocFields), false, "a_%1$s".format(v), "p_a_%1$s".format(v), 1)
@@ -276,7 +318,9 @@ object ElasticServices {
       bulk(
         index into "actions/action" id (action.id) fields (actionDocFields),
         update(docId) in ("profiles/intervalInterest") script (deltaScript.toString()) params (deltaParams.toMap) upsert (docFields),
-        update(itemDocId) in ("items/intervalInterest") script (itemDeltaScript.toString()) params (itemDeltaParams.toMap) upsert (itemDocFields)
+        update(docIdTotal) in ("profiles/intervalInterest") script (deltaScript.toString()) params (deltaParams.toMap) upsert (docFields ++ Map("id" -> docIdTotal, "total" -> "true")),
+        update(itemDocId) in ("items/itemInterest") script (itemDeltaScript.toString()) params (itemDeltaParams.toMap) upsert (itemDocFields),
+        update(itemDocIdTotal) in ("items/itemInterest") script (itemDeltaScript.toString()) params (itemDeltaParams.toMap) upsert (itemDocFields ++ Map("id" -> itemDocIdTotal, "total" -> "true"))
       )
     }
   }
@@ -504,22 +548,152 @@ object ElasticServices {
   }
 
 
+  def recommend(userId: String, from: Int = 0, limit: Int = 100): Future[Seq[String]] = {
+
+    val sdf = new SimpleDateFormat("yyyy-MM")
+    var dt = new DateTime()
+
+    val idUserInterestTotal = "%1$s_total".format(userId)
+    val idUserInterestCurrent = "%1$s_%2$s".format(userId, sdf.format(dt.toDate))
+    dt = dt.minusMonths(1)
+    val idUserInterestPrevious1 = "%1$s_%2$s".format(userId, sdf.format(dt.toDate))
+    dt = dt.minusMonths(1)
+    val idUserInterestPrevious2 = "%1$s_%2$s".format(userId, sdf.format(dt.toDate))
+    dt = dt.minusMonths(1)
+    val idUserInterestPrevious3 = "%1$s_%2$s".format(userId, sdf.format(dt.toDate))
+
+
+
+    //find user total interests
+    client.execute {
+      multiget(
+        get id userId from "profiles/user",
+        get id idUserInterestTotal from "profiles/intervalInterest",
+        get id idUserInterestCurrent from "profiles/intervalInterest",
+        get id idUserInterestPrevious1 from "profiles/intervalInterest",
+        get id idUserInterestPrevious2 from "profiles/intervalInterest",
+        get id idUserInterestPrevious3 from "profiles/intervalInterest"
+      )
+    }.flatMap {
+      mgr =>
+
+        val user = readUser(mgr.getResponses()(0).getResponse.getSource.toMap)
+        val userInterestTotal = readUserIterest(mgr.getResponses()(1).getResponse.getSource.toMap)
+        //        val user = readUser(mgr.getResponses()(2).getResponse.getSource.toMap)
+        //        val user = readUser(mgr.getResponses()(3).getResponse.getSource.toMap)
+
+        log.info("{}", userInterestTotal)
+
+        //        if (up.ids.isEmpty) {
+        //          search in "items" types "item" fields ("id") query {
+        //            "*:*"
+        //          } sort {
+        //            by field ("createdTs") order SortOrder.DESC
+        //          } limit (limit.getOrElse(defaultLimit))
+        //        } else {
+
+        val totalItemsCriteria = collection.mutable.Buffer[QueryDefinition]()
+        user.sex.map { x => totalItemsCriteria += termsQuery("sex", x)}
+        user.geo.map { x => totalItemsCriteria += termsQuery("geo", x)}
+        user.age().map { x => totalItemsCriteria += termsQuery("age", "" + x)}
+
+        findItemIds(userId).flatMap {
+          idsToFilter =>
+            client.execute(
+              search in "items" types ("item") fields ("id") query (
+                bool(
+                  should(
+                    (userInterestTotal.categoriesIterest.map {
+                      x =>
+                        termsQuery("categories", x._1).boost(x._2)
+                    } ++
+                      userInterestTotal.tagIterest.map {
+                        x =>
+                          termsQuery("tags", x._1).boost(x._2)
+                      } ++
+                      userInterestTotal.termsIterest.map {
+                        x =>
+                          termsQuery("terms", x._1).boost(x._2)
+                      } ++ totalItemsCriteria
+                      ).toArray: _*
+                  )
+                )
+                ) filter {
+                not {
+                  idsFilter(idsToFilter.toArray: _*)
+                }
+              },
+              search in "items" types ("itemInterest") fields ("item") query (
+                bool(
+                  should(
+                    totalItemsCriteria.toArray: _*
+                  )
+                )
+                ) filter {
+                not {
+                  idsFilter(idsToFilter.toArray: _*)
+                }
+              },
+              search in "items" types ("item") fields ("id") query (
+                matchall
+                ) sort (by field ("createdTs") order SortOrder.DESC) filter {
+                not {
+                  idsFilter(idsToFilter.toArray: _*)
+                }
+              }
+
+            ).map {
+              msr =>
+                msr.getResponses.map(_.getResponse)
+                  .filter(_ != null)
+                  .filter(_.getHits != null)
+                  .filter(!_.getHits.hits().isEmpty)
+                  .flatMap {
+                  sr =>
+
+                    sr.getHits.hits().map {
+                      hit =>
+                        val fieldValues = hit.fields()
+                        if (fieldValues.contains("id")) {
+                          "" + fieldValues.get("id").getValue
+                        } else if (fieldValues.contains("item")) {
+                          "" + fieldValues.get("item").getValue
+                        } else {
+                          ""
+                        }
+                    }.filter(!_.isEmpty)
+                }
+            }
+        }
+    }
+
+    //find items total interest
+    //filter by user actions
+
+  }
+
+
   def main(args: Array[String]) = {
     val sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSS")
 
-    deleteIndexes()
-    createIndexes()
+    //    deleteIndexes()
+    //    createIndexes()
 
     val u = User("u1", Some("male"), Some("1979-11-29"), Some("Minsk"), Some(Set[String]("cat1", "cat2")))
     val i = ContentItem("ci1", Some("2015-01-01T09:08:07.123"), Some(Set[String]("tag1", "tag2")), Some(Set[String]("cat1", "cat2")), Some(Set[String]("term1", "term2")), Some("author"), None)
-    val a = Action("a1", sdf.format(new Date()), "u1", "ci1", "view")
+    val i2 = ContentItem("ci2", Some("2015-01-01T09:08:07.123"), Some(Set[String]("tag1", "tag3")), Some(Set[String]("cat4", "cat2")), Some(Set[String]("term5", "term2")), Some("author"), None)
+    val a1 = Action("a1", sdf.format(new Date()), "u1", "ci1", "view")
+    val a2 = Action("a1", sdf.format(new Date()), "u1", "ci1", "view")
 
     implicit val d = Duration(30, TimeUnit.SECONDS)
 
-    log.info("" + indexUser(u).await)
-    log.info("" + indexItem(i).await)
-    log.info("" + indexActionLogic(a).await.map { br => br.buildFailureMessage()}.getOrElse("None"))
+    //    log.info("" + indexUser(u).await)
+    //        log.info("" + indexItem(i).await)
+    log.info("" + indexItem(i2).await)
+    //    log.info("" + indexActionLogic(a1).await.map { br => br.buildFailureMessage()}.getOrElse("None"))
+    //    log.info("" + indexActionLogic(a2).await.map { br => br.buildFailureMessage()}.getOrElse("None"))
 
+    log.info("" + recommend(u.id).await)
 
   }
 
