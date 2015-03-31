@@ -15,7 +15,7 @@ case class CommonEvent(event: String,
                        properties: Option[CommonProperties]) {
 }
 
-case class CommonProperties(tags: Option[Set[String]], theme: Option[String], gender: Option[String], birthDate: Option[Date], region: Option[String], themes: Option[Set[String]]) {
+case class CommonProperties(tags: Option[Set[String]], theme: Option[String], gender: Option[String], birthDate: Option[java.sql.Date], region: Option[String], themes: Option[Set[String]]) {
 
 }
 

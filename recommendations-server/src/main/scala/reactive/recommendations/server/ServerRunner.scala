@@ -1,6 +1,7 @@
 package reactive.recommendations.server
 
 import _root_.akka.pattern.ask
+
 //import _root_.akka.actor.ActorSystem
 //import _root_.akka.io.IO
 //import _root_.akka.util.Timeout
@@ -9,7 +10,7 @@ import _root_.akka.actor.ActorSystem
 import _root_.akka.io.IO
 import _root_.akka.util.Timeout
 import org.slf4j.LoggerFactory
-import reactive.recommendations.server.akka.ServiceUI
+import reactive.recommendations.server.akka.{PioServiceUI, ServiceUI}
 import scopt.OptionParser
 import spray.can.Http
 
@@ -42,7 +43,7 @@ object ServerRunner {
 
         //start akka with spray
         implicit val system = ActorSystem("RecommendationSystem")
-        val serviceUi = system.actorOf(ServiceUI.props(), "serviceUi")
+        val serviceUi = system.actorOf(PioServiceUI.props(), "serviceUi")
 
         implicit val timeout = Timeout(5.seconds)
 

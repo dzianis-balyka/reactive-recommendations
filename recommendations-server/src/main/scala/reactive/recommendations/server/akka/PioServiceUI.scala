@@ -1,15 +1,21 @@
 package reactive.recommendations.server.akka
 
+import java.sql
+import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.concurrent.Executors
 
 import akka.actor.{Actor, Props}
 import org.json4s.{NoTypeHints, Formats}
 import org.json4s.jackson.Serialization
+import org.slf4j.LoggerFactory
 import reactive.recommendations.commons.domain.{User, ContentItem, Action, Recommendation}
+import reactive.recommendations.commons.frontend._
 import reactive.recommendations.server.ElasticServices
 import spray.http.{StatusCode, MediaTypes}
 import spray.json.DefaultJsonProtocol._
+import spray.httpx.SprayJsonSupport._
+import spray.json.{JsNull, JsString, JsValue, JsonFormat}
 import spray.routing.HttpService
 
 import scala.concurrent.ExecutionContext
@@ -34,12 +40,10 @@ class PioServiceUI extends Actor with Service {
 
 trait Service extends HttpService {
 
-  implicit def json4sFormats: Formats = Serialization.formats(NoTypeHints)
+  val serviceTraitLogger = LoggerFactory.getLogger(classOf[Service])
 
-  implicit val reco = jsonFormat3(Recommendation)
-  implicit val act = jsonFormat6(Action)
-  implicit val itm = jsonFormat7(ContentItem)
-  implicit val usr = jsonFormat5(User)
+  import reactive.recommendations.commons.frontend._
+
   implicit val ec = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(10))
   val detachEc = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(10))
 
@@ -57,18 +61,15 @@ trait Service extends HttpService {
         }
       } ~
         post {
-          entity(as[ContentItem]) {
+          entity(as[CommonEvent]) {
             item =>
+              serviceTraitLogger.info("{}", item)
               complete {
-                ElasticServices.indexItem(item).map {
-                  ir =>
-                    StatusCode.int2StatusCode(200)
-                }
+                StatusCode.int2StatusCode(200)
               }
           }
         }
     }
-
 
 
 }
