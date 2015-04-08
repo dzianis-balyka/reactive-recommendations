@@ -34,6 +34,11 @@ object ServerRunner {
       (conf, c) =>
         c.copy(port = conf)
     } text ("port to bind")
+    opt[Unit]('i', "init") action {
+      (conf, c) =>
+        c.copy(init = true)
+    } text ("init logic")
+
   }
 
   def main(args: Array[String]): Unit = {
@@ -41,14 +46,17 @@ object ServerRunner {
       config =>
         log.info("processing with {}", config)
 
-        //start akka with spray
-        implicit val system = ActorSystem("RecommendationSystem")
-        val serviceUi = system.actorOf(PioServiceUI.props(), "serviceUi")
+        if (config.init) {
+          ElasticServices.createIndexes()
+        } else {
+          //start akka with spray
+          implicit val system = ActorSystem("RecommendationSystem")
+          val serviceUi = system.actorOf(PioServiceUI.props(), "serviceUi")
 
-        implicit val timeout = Timeout(5.seconds)
+          implicit val timeout = Timeout(5.seconds)
 
-        IO(Http) ? Http.Bind(serviceUi, interface = config.host, port = config.port)
-
+          IO(Http) ? Http.Bind(serviceUi, interface = config.host, port = config.port)
+        }
     } getOrElse {
       // arguments are bad, error message will have been displayed
     }
@@ -56,4 +64,4 @@ object ServerRunner {
 
 }
 
-case class ServerConfig(host: String = "0.0.0.0", port: Int = 8989)
+case class ServerConfig(host: String = "0.0.0.0", port: Int = 8989, init: Boolean = false)
