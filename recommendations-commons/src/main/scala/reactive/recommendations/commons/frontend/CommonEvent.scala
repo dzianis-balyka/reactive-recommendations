@@ -8,8 +8,8 @@ import java.util.Date
 case class CommonEvent(event: String,
                        entityType: String,
                        entityId: String,
-                       targetEntityType: String,
-                       targetEntityId: String,
+                       targetEntityType: Option[String],
+                       targetEntityId: Option[String],
                        eventTime: Date,
                        appId: Int,
                        properties: Option[CommonProperties]) {

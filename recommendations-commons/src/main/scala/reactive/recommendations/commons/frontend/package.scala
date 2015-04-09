@@ -6,6 +6,7 @@ import java.util.Date
 
 import org.json4s.{NoTypeHints, Formats}
 import org.json4s.jackson.Serialization
+import org.slf4j.LoggerFactory
 import spray.json.DefaultJsonProtocol._
 import spray.json.{JsNull, JsString, JsValue, JsonFormat}
 
@@ -13,17 +14,31 @@ import spray.json.{JsNull, JsString, JsValue, JsonFormat}
  * Created by denik on 31.03.2015.
  */
 package object frontend {
+
+  val packageLogger = LoggerFactory.getLogger("reactive.recommendations.commons.frontend._")
+
   implicit def json4sFormats: Formats = Serialization.formats(NoTypeHints)
 
-  implicit val dateFormat = new JsonFormat[Option[java.sql.Date]] {
-    def read(json: JsValue): Option[java.sql.Date] = {
-      Some(sql.Date.valueOf(json.asInstanceOf[JsString].value))
+  implicit val dateFormat = new JsonFormat[java.sql.Date] {
+
+    val dateFmt = "dd.MM.yyyy"
+
+    def read(json: JsValue): java.sql.Date = {
+      val dateString = json.asInstanceOf[JsString].value
+      var result: java.sql.Date =
+        try {
+          sql.Date.valueOf(json.asInstanceOf[JsString].value)
+        } catch {
+          case t: Throwable => {
+            packageLogger.warn("{}", t)
+            new java.sql.Date(new SimpleDateFormat(dateFmt).parse(dateString).getTime)
+          }
+        }
+      result
     }
 
-    def write(date: Option[java.sql.Date]) = date.map {
-      x =>
-        JsString(x.toString)
-    } getOrElse (JsNull)
+    def write(date: java.sql.Date) =
+      JsString(date.toString)
   }
   implicit val dateTimeFormat = new JsonFormat[Date] {
     val fmt = "yyyy-MM-dd'T'HH:mm:ss.SSSSS"

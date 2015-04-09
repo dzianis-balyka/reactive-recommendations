@@ -41,11 +41,54 @@ object Client {
 
     val pipeline: HttpRequest => Future[HttpResponse] = sendReceive
 
-    val event = CommonEvent("evt", "et", "id", "tet", "tei", new Date(), 1, None)
+    val event = CommonEvent("evt", "et", "id", Some("tet"), Some("tei"), new Date(), 1, None)
 
     log.info("{}", Serialization.writePretty(event))
 
-    val response: Future[HttpResponse] = pipeline(Post("http://localhost:8989/events.json", event))
+    val request = HttpRequest(
+      method = HttpMethods.POST,
+      uri = "http://localhost:8989/events.json",
+      entity = HttpEntity(ContentTypes.`application/json`,
+        """{
+               "event":"$set",
+               "entityType":"pio_user",
+               "entityId":"7baa56fe-c844-48d9-878c-753d9f449213",
+               "properties":
+                  {
+                    "gender":"m",
+                    "birthDate":"01.01.1900",
+                    "region":"za",
+                    "themes":["personal-development","music"]
+                  },
+               "eventTime":"2015-03-12T19:26:42.328Z",
+               "appId":1
+               }""".stripMargin))
+
+
+    //    val request = HttpRequest(
+    //      method = HttpMethods.POST,
+    //      uri = "http://localhost:8989/events.json",
+    //      entity = HttpEntity(ContentTypes.`application/json`,
+    //        """{"event":"buy","entityType":"pio_user","entityId":"7baa56fe-c844-48d9-878c-753d9f449211","targetEntityType":"pio_item","targetEntityId":"23925421","eventTime":"2015-03-12T19:30:48.713Z","appId":1}""".stripMargin))
+
+//    val request = HttpRequest(
+//      method = HttpMethods.POST,
+//      uri = "http://localhost:8989/queries.json",
+//      entity = HttpEntity(ContentTypes.`application/json`,
+//        """{"uid":"7baa56fe-c844-48d9-878c-753d9f449211","limit":9,"offset":0}""".stripMargin))
+
+    //    val request = HttpRequest(
+    //      method = HttpMethods.POST,
+    //      uri = "http://localhost:8989/events.json",
+    //      entity = HttpEntity(ContentTypes.`application/json`,
+    //        """{"event":"$set","entityType":"pio_item","entityId":"23925421","properties":{"tags":["2d","3d","4d"],"theme":"games"},"eventTime":"2015-03-12T19:26:42.328Z","appId":1}""".stripMargin))
+
+
+    log.info("" + request)
+
+
+    //    val response: Future[HttpResponse] = pipeline(Post("http://localhost:8989/events.json", event))
+    val response: Future[HttpResponse] = pipeline(request)
 
     log.info("" + response.await)
   }

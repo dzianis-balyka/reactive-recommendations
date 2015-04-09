@@ -82,7 +82,7 @@ trait PIOService extends HttpService {
                 respondWithMediaType(MediaTypes.`application/json`) {
                   val id = uuid
                   complete {
-                    ElasticServices.indexAction(Action(id, tsSdf.format(item.eventTime), item.entityId, item.targetEntityId, item.event)).map {
+                    ElasticServices.indexActionLogic(Action(id, tsSdf.format(item.eventTime), item.entityId, item.targetEntityId.get, item.event)).map {
                       ir =>
                         EventId(id)
                     }
